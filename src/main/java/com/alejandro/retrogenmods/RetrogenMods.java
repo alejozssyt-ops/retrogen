@@ -30,16 +30,21 @@ public class RetrogenMods implements ModInitializer {
 		config = RetrogenConfig.load();
 		ChunkMarks.init();
 
-		// Chunk cargado: si es nuevo, ya nació con los mods -> se marca como hecho.
-		// Si viene de disco y le falta algún namespace -> a la cola.
-		ServerChunkEvents.CHUNK_LOAD.register((level, chunk, newlyGenerated) -> {
+		// Chunk recién generado: ya nació con los mods -> se marca como hecho.
+		ServerChunkEvents.CHUNK_GENERATE.register((level, chunk) -> {
+			for (String ns : config.namespaces) {
+				ChunkMarks.markApplied(chunk, ChunkMarks.key(ns, config.version));
+			}
+		});
+
+		// Chunk cargado: si le falta algún namespace -> a la cola. Al procesarla (más tarde en
+		// el tick) se vuelve a comprobar, así que los chunks nuevos ya marcados se saltan solos.
+		ServerChunkEvents.CHUNK_LOAD.register((level, chunk) -> {
 			boolean pending = false;
 			for (String ns : config.namespaces) {
-				String key = ChunkMarks.key(ns, config.version);
-				if (newlyGenerated) {
-					ChunkMarks.markApplied(chunk, key);
-				} else if (!ChunkMarks.isApplied(chunk, key)) {
+				if (!ChunkMarks.isApplied(chunk, ChunkMarks.key(ns, config.version))) {
 					pending = true;
+					break;
 				}
 			}
 			if (pending) {
