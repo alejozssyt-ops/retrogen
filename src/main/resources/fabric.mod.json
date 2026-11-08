@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "retrogen_mods",
+  "version": "${version}",
+  "name": "Retrogen Mods",
+  "description": "Aplica la generación de otros mods (Ecologics, Moog's Soaring Structures...) en chunks ya existentes, estilo Retrogen.",
+  "authors": ["Alejandro"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.alejandro.retrogenmods.RetrogenMods"]
+  },
+  "depends": {
+    "fabricloader": "*",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "ecologics": "*",
+    "moogs_soaring_structures": "*"
+  }
+}
