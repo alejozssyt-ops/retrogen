@@ -37,7 +37,7 @@ public class RetrogenConfig {
 	public long skipStructuresIfInhabitedTicksAbove = 1200;
 
 	/** Zonas donde el mod no toca nada (ni estructuras ni features). */
-	public List<ProtectedZone> protectedZones = new ArrayList<>(List.of(new ProtectedZone(850, -750, 8, "minecraft:overworld")));
+	public List<ProtectedZone> protectedZones = new ArrayList<>(List.of(new ProtectedZone(850, -750, 16, "minecraft:overworld")));
 
 	public static class ProtectedZone {
 		/** Centro de la zona, en coordenadas de bloque. */
