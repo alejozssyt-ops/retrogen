@@ -54,6 +54,9 @@ public final class StructureRetrogen {
 				continue;
 			}
 			StructureSet set = setHolder.value();
+			if (!validHere(level, set)) {
+				continue;
+			}
 			StructurePlacement placement = set.placement();
 			if (!placement.isStructureChunk(state, cp.x, cp.z)) {
 				continue;
@@ -112,6 +115,17 @@ public final class StructureRetrogen {
 		return generated;
 	}
 
+	/** true si alguna estructura del set puede existir en algún bioma de esta dimensión. */
+	private static boolean validHere(ServerLevel level, StructureSet set) {
+		var possible = level.getChunkSource().getGenerator().getBiomeSource().possibleBiomes();
+		for (StructureSet.StructureSelectionEntry e : set.structures()) {
+			if (e.structure().value().biomes().stream().anyMatch(possible::contains)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static boolean areaIsFree(ServerLevel level, int minCx, int maxCx, int minCz, int maxCz) {
 		for (int x = minCx; x <= maxCx; x++) {
 			for (int z = minCz; z <= maxCz; z++) {
@@ -158,6 +172,9 @@ public final class StructureRetrogen {
 				}
 			}
 			if (!match) {
+				continue;
+			}
+			if (!validHere(level, h.value())) {
 				continue;
 			}
 			StructurePlacement placement = h.value().placement();
