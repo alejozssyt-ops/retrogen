@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -88,11 +89,24 @@ public class RetrogenMods implements ModInitializer {
 									CommandSourceStack src = ctx.getSource();
 									ServerLevel level = src.getLevel();
 									ChunkPos center = new ChunkPos(BlockPos.containing(src.getPosition()));
-									String result = StructureRetrogen.scan(level, center, IntegerArgumentType.getInteger(ctx, "radio"), config.namespaces);
+									String result = StructureRetrogen.scan(level, center, IntegerArgumentType.getInteger(ctx, "radio"), config.namespaces, null);
 									LOGGER.info(result);
 									src.sendSuccess(() -> Component.literal(result), false);
 									return 1;
-								})))
+								}).then(Commands.argument("filtro", StringArgumentType.word()).executes(ctx -> {
+									CommandSourceStack src = ctx.getSource();
+									ChunkPos center = new ChunkPos(BlockPos.containing(src.getPosition()));
+									String result = StructureRetrogen.scan(src.getLevel(), center, IntegerArgumentType.getInteger(ctx, "radio"), config.namespaces, StringArgumentType.getString(ctx, "filtro"));
+									LOGGER.info(result);
+									src.sendSuccess(() -> Component.literal(result), false);
+									return 1;
+								}))))
+						.then(Commands.literal("sets").executes(ctx -> {
+							String result = StructureRetrogen.listSets(ctx.getSource().getLevel(), config.namespaces);
+							LOGGER.info("SETS: {}", result);
+							ctx.getSource().sendSuccess(() -> Component.literal(result), false);
+							return 1;
+						}))
 						.then(Commands.literal("here").executes(ctx -> {
 							CommandSourceStack src = ctx.getSource();
 							ServerLevel level = src.getLevel();

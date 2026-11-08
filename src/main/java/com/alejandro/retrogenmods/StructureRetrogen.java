@@ -157,7 +157,7 @@ public final class StructureRetrogen {
 	}
 
 	/** Lista los puntos de inicio de estructura más cercanos (cálculo puro, no genera nada). */
-	public static String scan(ServerLevel level, ChunkPos center, int radius, List<String> namespaces) {
+	public static String scan(ServerLevel level, ChunkPos center, int radius, List<String> namespaces, String filter) {
 		ChunkGeneratorStructureState state = level.getChunkSource().getGeneratorState();
 		Registry<StructureSet> sets = level.registryAccess().lookupOrThrow(Registries.STRUCTURE_SET);
 		record Hit(long dist, String name, int x, int z) {
@@ -171,7 +171,7 @@ public final class StructureRetrogen {
 					match = true;
 				}
 			}
-			if (!match) {
+			if (!match || (filter != null && !name.contains(filter))) {
 				continue;
 			}
 			if (!validHere(level, h.value())) {
@@ -195,5 +195,21 @@ public final class StructureRetrogen {
 			sb.append("\n").append(hit.name()).append(" -> bloque ").append(hit.x() * 16 + 8).append(" ").append(hit.z() * 16 + 8);
 		}
 		return sb.toString();
+	}
+
+	/** Nombres de todos los structure sets de los namespaces dados (para saber cuáles son las islas). */
+	public static String listSets(ServerLevel level, List<String> namespaces) {
+		Registry<StructureSet> sets = level.registryAccess().lookupOrThrow(Registries.STRUCTURE_SET);
+		List<String> names = new ArrayList<>();
+		for (Holder.Reference<StructureSet> h : sets.listElements().toList()) {
+			String name = h.getRegisteredName();
+			for (String ns : namespaces) {
+				if (name.startsWith(ns + ":")) {
+					names.add(name + (validHere(level, h.value()) ? "" : " (no aplica en esta dimensión)"));
+				}
+			}
+		}
+		names.sort(String::compareTo);
+		return String.join(", ", names);
 	}
 }
