@@ -123,7 +123,20 @@ public class RetrogenMods implements ModInitializer {
 		}
 	}
 
+	private static boolean unprotected(ServerLevel level) {
+		String dimension = level.dimension().toString();
+		for (String d : config.unprotectedDimensions) {
+			if (dimension.contains(d)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public static boolean isProtected(ServerLevel level, ChunkPos pos) {
+		if (unprotected(level)) {
+			return false;
+		}
 		String dimension = level.dimension().toString();
 		int centerX = pos.getMinBlockX() + 8;
 		int centerZ = pos.getMinBlockZ() + 8;
@@ -139,15 +152,15 @@ public class RetrogenMods implements ModInitializer {
 		return false;
 	}
 
-	public static boolean isBusy(ChunkAccess chunk) {
-		return config.skipStructuresIfInhabitedTicksAbove >= 0
+	public static boolean isBusy(ServerLevel level, ChunkAccess chunk) {
+		return !unprotected(level) && config.skipStructuresIfInhabitedTicksAbove >= 0
 				&& chunk.getInhabitedTime() > config.skipStructuresIfInhabitedTicksAbove;
 	}
 
 	/** @param force ignora las marcas (pero NO las zonas protegidas ni el tiempo habitado). */
 	private static String process(ServerLevel level, LevelChunk chunk, boolean force) {
 		boolean inProtectedZone = isProtected(level, chunk.getPos());
-		boolean busyChunk = isBusy(chunk);
+		boolean busyChunk = isBusy(level, chunk);
 		StringBuilder summary = new StringBuilder();
 		for (String ns : config.namespaces) {
 			String key = ChunkMarks.key(ns, config.version);

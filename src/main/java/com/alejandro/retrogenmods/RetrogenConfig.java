@@ -19,7 +19,7 @@ public class RetrogenConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	/** Namespaces (ids de mod) cuyas features/estructuras se aplican retroactivamente. */
-	public List<String> namespaces = new ArrayList<>(List.of("mss"));
+	public List<String> namespaces = new ArrayList<>(List.of("mss", "mes", "ecologics"));
 
 	/** Cuántos chunks se procesan por tick (más alto = más rápido pero más lag). */
 	public int chunksPerTick = 1;
@@ -35,6 +35,9 @@ public class RetrogenConfig {
 	 * (20 ticks = 1 segundo; 1200 = 1 minuto). Pon -1 para desactivar esta protección.
 	 */
 	public long skipStructuresIfInhabitedTicksAbove = 1200;
+
+	/** Dimensiones donde NO se aplica ninguna protección (ni zonas protegidas ni tiempo habitado): todo se retrogenera. */
+	public List<String> unprotectedDimensions = new ArrayList<>(List.of("minecraft:the_end"));
 
 	/** Zonas donde el mod no toca nada (ni estructuras ni features). */
 	public List<ProtectedZone> protectedZones = new ArrayList<>(List.of(new ProtectedZone(850, -750, 16, "minecraft:overworld")));

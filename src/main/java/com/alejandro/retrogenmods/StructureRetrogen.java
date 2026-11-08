@@ -118,7 +118,7 @@ public final class StructureRetrogen {
 					return false;
 				}
 				ChunkAccess c = level.getChunk(x, z);
-				if (RetrogenMods.isBusy(c)) {
+				if (RetrogenMods.isBusy(level, c)) {
 					return false;
 				}
 			}
