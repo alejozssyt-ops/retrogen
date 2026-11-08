@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -82,6 +83,16 @@ public class RetrogenMods implements ModInitializer {
 		// /retrogen here -> fuerza el retrogen en el chunk donde estás (para probar).
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 				dispatcher.register(Commands.literal("retrogen")
+						.then(Commands.literal("scan")
+								.then(Commands.argument("radio", IntegerArgumentType.integer(1, 150)).executes(ctx -> {
+									CommandSourceStack src = ctx.getSource();
+									ServerLevel level = src.getLevel();
+									ChunkPos center = new ChunkPos(BlockPos.containing(src.getPosition()));
+									String result = StructureRetrogen.scan(level, center, IntegerArgumentType.getInteger(ctx, "radio"), config.namespaces);
+									LOGGER.info(result);
+									src.sendSuccess(() -> Component.literal(result), false);
+									return 1;
+								})))
 						.then(Commands.literal("here").executes(ctx -> {
 							CommandSourceStack src = ctx.getSource();
 							ServerLevel level = src.getLevel();
@@ -180,7 +191,7 @@ public class RetrogenMods implements ModInitializer {
 			} catch (Exception e) {
 				LOGGER.error("Retrogen falló para {} en {}", ns, chunk.getPos(), e);
 			}
-			LOGGER.info("Retrogen {} en {}: {} estructuras, {} features{}", ns, chunk.getPos(), structures, features,
+			LOGGER.info("Retrogen {} en {} ({}): {} estructuras, {} features{}", ns, chunk.getPos(), level.dimension().toString(), structures, features,
 					busyChunk ? " (estructuras omitidas: chunk muy visitado)" : "");
 			summary.append(ns).append(": ").append(structures).append(" estructuras, ").append(features).append(" features. ");
 			ChunkMarks.markApplied(chunk, key);

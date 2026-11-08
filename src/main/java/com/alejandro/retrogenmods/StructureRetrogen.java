@@ -22,6 +22,7 @@ import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -139,5 +140,43 @@ public final class StructureRetrogen {
 			}
 		}
 		return list.get(0);
+	}
+
+	/** Lista los puntos de inicio de estructura más cercanos (cálculo puro, no genera nada). */
+	public static String scan(ServerLevel level, ChunkPos center, int radius, List<String> namespaces) {
+		ChunkGeneratorStructureState state = level.getChunkSource().getGeneratorState();
+		Registry<StructureSet> sets = level.registryAccess().lookupOrThrow(Registries.STRUCTURE_SET);
+		record Hit(long dist, String name, int x, int z) {
+		}
+		List<Hit> hits = new ArrayList<>();
+		for (Holder.Reference<StructureSet> h : sets.listElements().toList()) {
+			String name = h.getRegisteredName();
+			boolean match = false;
+			for (String ns : namespaces) {
+				if (name.startsWith(ns + ":")) {
+					match = true;
+				}
+			}
+			if (!match) {
+				continue;
+			}
+			StructurePlacement placement = h.value().placement();
+			for (int x = center.x - radius; x <= center.x + radius; x++) {
+				for (int z = center.z - radius; z <= center.z + radius; z++) {
+					if (placement.isStructureChunk(state, x, z)) {
+						long dx = x - center.x;
+						long dz = z - center.z;
+						hits.add(new Hit(dx * dx + dz * dz, name, x, z));
+					}
+				}
+			}
+		}
+		hits.sort(Comparator.comparingLong(Hit::dist));
+		StringBuilder sb = new StringBuilder("Puntos de inicio en " + radius + " chunks: " + hits.size() + ". Más cercanos: ");
+		for (int i = 0; i < Math.min(8, hits.size()); i++) {
+			Hit hit = hits.get(i);
+			sb.append("\n").append(hit.name()).append(" -> bloque ").append(hit.x() * 16 + 8).append(" ").append(hit.z() * 16 + 8);
+		}
+		return sb.toString();
 	}
 }
