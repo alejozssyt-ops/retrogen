@@ -24,6 +24,16 @@ public class RetrogenConfig {
 	/** Cuántos chunks se procesan por tick (más alto = más rápido pero más lag). */
 	public int chunksPerTick = 1;
 
+	/** Chunks existentes procesados por tick en la tarea /retrogen area. */
+	public int areaChunksPerTick = 4;
+
+	/**
+	 * Repinta los biomas de chunks viejos con el generador de biomas actual (Terralith, WWOO...).
+	 * No cambia bloques ni terreno: solo datos de bioma (colores, fauna, features nuevas).
+	 */
+	public boolean repaintBiomes = true;
+	public List<String> repaintDimensions = new ArrayList<>(List.of("minecraft:overworld"));
+
 	public boolean retrogenStructures = true;
 	public boolean retrogenFeatures = true;
 

@@ -45,7 +45,7 @@ public class RetrogenMods implements ModInitializer {
 
 		// Chunk recién generado: ya nació con los mods -> se marca como hecho.
 		ServerChunkEvents.CHUNK_GENERATE.register((level, chunk) -> {
-			for (String ns : config.namespaces) {
+			for (String ns : markNames()) {
 				ChunkMarks.markApplied(chunk, ChunkMarks.key(ns, config.version));
 			}
 		});
@@ -53,7 +53,7 @@ public class RetrogenMods implements ModInitializer {
 		// Chunk cargado sin marca -> a la cola.
 		ServerChunkEvents.CHUNK_LOAD.register((level, chunk) -> {
 			boolean pending = false;
-			for (String ns : config.namespaces) {
+			for (String ns : markNames()) {
 				if (!ChunkMarks.isApplied(chunk, ChunkMarks.key(ns, config.version))) {
 					pending = true;
 					break;
@@ -68,6 +68,7 @@ public class RetrogenMods implements ModInitializer {
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			AreaJob.tick(config.areaChunksPerTick);
 			int budget = config.chunksPerTick;
 			while (budget-- > 0 && !QUEUE.isEmpty()) {
 				Pending p = QUEUE.poll();
@@ -101,6 +102,17 @@ public class RetrogenMods implements ModInitializer {
 									src.sendSuccess(() -> Component.literal(result), false);
 									return 1;
 								}))))
+						.then(Commands.literal("area")
+								.then(Commands.argument("lado", IntegerArgumentType.integer(1, 256)).executes(ctx -> {
+									String result = AreaJob.start(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "lado"));
+									ctx.getSource().sendSuccess(() -> Component.literal(result), false);
+									return 1;
+								})))
+						.then(Commands.literal("cancel").executes(ctx -> {
+							String result = AreaJob.cancel() ? "Tarea cancelada." : "No hay ninguna tarea en curso.";
+							ctx.getSource().sendSuccess(() -> Component.literal(result), false);
+							return 1;
+						}))
 						.then(Commands.literal("sets").executes(ctx -> {
 							String result = StructureRetrogen.listSets(ctx.getSource().getLevel(), config.namespaces);
 							LOGGER.info("SETS: {}", result);
@@ -182,11 +194,49 @@ public class RetrogenMods implements ModInitializer {
 				&& chunk.getInhabitedTime() > config.skipStructuresIfInhabitedTicksAbove;
 	}
 
+	/** Claves de marca de un chunk: cada namespace, más el repintado de biomas si está activo. */
+	private static java.util.List<String> markNames() {
+		java.util.List<String> names = new java.util.ArrayList<>(config.namespaces);
+		if (config.repaintBiomes) {
+			names.add("#repaint");
+		}
+		return names;
+	}
+
+	private static boolean repaintHere(ServerLevel level) {
+		String dimension = level.dimension().toString();
+		for (String d : config.repaintDimensions) {
+			if (dimension.contains(d)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static void processChunk(ServerLevel level, LevelChunk chunk) {
+		process(level, chunk, false);
+	}
+
 	/** @param force ignora las marcas (pero NO las zonas protegidas ni el tiempo habitado). */
 	private static String process(ServerLevel level, LevelChunk chunk, boolean force) {
 		boolean inProtectedZone = isProtected(level, chunk.getPos());
 		boolean busyChunk = isBusy(level, chunk);
 		StringBuilder summary = new StringBuilder();
+		// 1) Repintar biomas primero, para que las features/estructuras usen el bioma nuevo.
+		if (config.repaintBiomes) {
+			String rkey = ChunkMarks.key("#repaint", config.version);
+			if (force || !ChunkMarks.isApplied(chunk, rkey)) {
+				if (!inProtectedZone && repaintHere(level)) {
+					try {
+						boolean changed = BiomeRepaint.apply(level, chunk);
+						summary.append(changed ? "bioma repintado. " : "bioma sin cambios. ");
+					} catch (Exception e) {
+						LOGGER.error("Repintado de bioma falló en {}", chunk.getPos(), e);
+					}
+				}
+				ChunkMarks.markApplied(chunk, rkey);
+			}
+		}
 		for (String ns : config.namespaces) {
 			String key = ChunkMarks.key(ns, config.version);
 			if (!force && ChunkMarks.isApplied(chunk, key)) {
@@ -205,7 +255,7 @@ public class RetrogenMods implements ModInitializer {
 			} catch (Exception e) {
 				LOGGER.error("Retrogen falló para {} en {}", ns, chunk.getPos(), e);
 			}
-			LOGGER.info("Retrogen {} en {} ({}): {} estructuras, {} features{}", ns, chunk.getPos(), level.dimension().toString(), structures, features,
+			(force || structures + features > 0 ? LOGGER.atInfo() : LOGGER.atDebug()).log("Retrogen {} en {} ({}): {} estructuras, {} features{}", ns, chunk.getPos(), level.dimension().toString(), structures, features,
 					busyChunk ? " (chunk muy visitado: solo estructuras de cielo)" : "");
 			summary.append(ns).append(": ").append(structures).append(" estructuras, ").append(features).append(" features. ");
 			ChunkMarks.markApplied(chunk, key);
