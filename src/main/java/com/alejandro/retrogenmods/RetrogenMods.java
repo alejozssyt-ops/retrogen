@@ -1,10 +1,20 @@
 package com.alejandro.retrogenmods;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +23,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TreeMap;
 
 public class RetrogenMods implements ModInitializer {
 	public static final String MOD_ID = "retrogen_mods";
@@ -37,8 +48,7 @@ public class RetrogenMods implements ModInitializer {
 			}
 		});
 
-		// Chunk cargado: si le falta algún namespace -> a la cola. Al procesarla (más tarde en
-		// el tick) se vuelve a comprobar, así que los chunks nuevos ya marcados se saltan solos.
+		// Chunk cargado sin marca -> a la cola.
 		ServerChunkEvents.CHUNK_LOAD.register((level, chunk) -> {
 			boolean pending = false;
 			for (String ns : config.namespaces) {
@@ -55,7 +65,6 @@ public class RetrogenMods implements ModInitializer {
 			}
 		});
 
-		// Procesa unos pocos chunks por tick para no congelar el servidor.
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			int budget = config.chunksPerTick;
 			while (budget-- > 0 && !QUEUE.isEmpty()) {
@@ -63,19 +72,61 @@ public class RetrogenMods implements ModInitializer {
 				QUEUED.remove(p);
 				LevelChunk chunk = p.level().getChunkSource().getChunkNow(p.pos().x, p.pos().z);
 				if (chunk != null) {
-					process(p.level(), chunk);
+					process(p.level(), chunk, false);
 				}
 			}
 		});
 
+		ServerLifecycleEvents.SERVER_STARTED.register(RetrogenMods::diagnose);
+
+		// /retrogen here -> fuerza el retrogen en el chunk donde estás (para probar).
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
+				dispatcher.register(Commands.literal("retrogen")
+						.then(Commands.literal("here").executes(ctx -> {
+							CommandSourceStack src = ctx.getSource();
+							ServerLevel level = src.getLevel();
+							LevelChunk chunk = level.getChunkAt(BlockPos.containing(src.getPosition()));
+							String result = process(level, chunk, true);
+							src.sendSuccess(() -> Component.literal(result), false);
+							return 1;
+						}))));
+
 		LOGGER.info("Retrogen Mods activo para: {}", config.namespaces);
 	}
 
-	/** true si el centro del chunk cae dentro de alguna zona protegida de la config. */
-	private static boolean isProtected(ServerLevel level, LevelChunk chunk) {
+	/** Al arrancar el mundo: muestra qué namespaces existen de verdad y avisa si alguno configurado no tiene nada. */
+	private static void diagnose(MinecraftServer server) {
+		var structureSets = server.registryAccess().lookupOrThrow(Registries.STRUCTURE_SET);
+		var placedFeatures = server.registryAccess().lookupOrThrow(Registries.PLACED_FEATURE);
+		TreeMap<String, Integer> sets = new TreeMap<>();
+		TreeMap<String, Integer> features = new TreeMap<>();
+		for (Identifier id : structureSets.keySet()) {
+			if (!id.getNamespace().equals("minecraft")) {
+				sets.merge(id.getNamespace(), 1, Integer::sum);
+			}
+		}
+		for (Identifier id : placedFeatures.keySet()) {
+			if (!id.getNamespace().equals("minecraft")) {
+				features.merge(id.getNamespace(), 1, Integer::sum);
+			}
+		}
+		LOGGER.info("DIAGNÓSTICO structure sets de mods (namespace=cantidad): {}", sets);
+		LOGGER.info("DIAGNÓSTICO placed features de mods (namespace=cantidad): {}", features);
+		for (String ns : config.namespaces) {
+			int s = sets.getOrDefault(ns, 0);
+			int f = features.getOrDefault(ns, 0);
+			if (s + f == 0) {
+				LOGGER.warn("DIAGNÓSTICO: el namespace '{}' NO tiene structure sets ni features. Revisa el nombre en config/retrogen_mods.json (usa uno de la lista de arriba).", ns);
+			} else {
+				LOGGER.info("DIAGNÓSTICO: '{}' tiene {} structure sets y {} placed features", ns, s, f);
+			}
+		}
+	}
+
+	public static boolean isProtected(ServerLevel level, ChunkPos pos) {
 		String dimension = level.dimension().toString();
-		int centerX = chunk.getPos().getMinBlockX() + 8;
-		int centerZ = chunk.getPos().getMinBlockZ() + 8;
+		int centerX = pos.getMinBlockX() + 8;
+		int centerZ = pos.getMinBlockZ() + 8;
 		for (RetrogenConfig.ProtectedZone zone : config.protectedZones) {
 			if (zone.dimension != null && !dimension.contains(zone.dimension)) {
 				continue;
@@ -88,30 +139,39 @@ public class RetrogenMods implements ModInitializer {
 		return false;
 	}
 
-	private static void process(ServerLevel level, LevelChunk chunk) {
-		boolean inProtectedZone = isProtected(level, chunk);
-		boolean busyChunk = config.skipStructuresIfInhabitedTicksAbove >= 0
+	public static boolean isBusy(ChunkAccess chunk) {
+		return config.skipStructuresIfInhabitedTicksAbove >= 0
 				&& chunk.getInhabitedTime() > config.skipStructuresIfInhabitedTicksAbove;
+	}
+
+	/** @param force ignora las marcas (pero NO las zonas protegidas ni el tiempo habitado). */
+	private static String process(ServerLevel level, LevelChunk chunk, boolean force) {
+		boolean inProtectedZone = isProtected(level, chunk.getPos());
+		boolean busyChunk = isBusy(chunk);
+		StringBuilder summary = new StringBuilder();
 		for (String ns : config.namespaces) {
 			String key = ChunkMarks.key(ns, config.version);
-			if (ChunkMarks.isApplied(chunk, key)) {
+			if (!force && ChunkMarks.isApplied(chunk, key)) {
 				continue;
 			}
 			if (inProtectedZone) {
-				// Zona protegida: no se toca nada, pero se marca para no volver a revisarla.
 				ChunkMarks.markApplied(chunk, key);
+				summary.append(ns).append(": zona protegida, no se toca. ");
 				continue;
 			}
+			int structures = 0;
+			int features = 0;
 			try {
-				int structures = (config.retrogenStructures && !busyChunk) ? StructureRetrogen.apply(level, chunk, ns) : 0;
-				int features = config.retrogenFeatures ? FeatureRetrogen.apply(level, chunk, ns) : 0;
-				if (structures + features > 0) {
-					LOGGER.debug("Retrogen {} en {}: {} estructuras, {} features", ns, chunk.getPos(), structures, features);
-				}
+				structures = (config.retrogenStructures && !busyChunk) ? StructureRetrogen.apply(level, chunk, ns) : 0;
+				features = config.retrogenFeatures ? FeatureRetrogen.apply(level, chunk, ns) : 0;
 			} catch (Exception e) {
 				LOGGER.error("Retrogen falló para {} en {}", ns, chunk.getPos(), e);
 			}
+			LOGGER.info("Retrogen {} en {}: {} estructuras, {} features{}", ns, chunk.getPos(), structures, features,
+					busyChunk ? " (estructuras omitidas: chunk muy visitado)" : "");
+			summary.append(ns).append(": ").append(structures).append(" estructuras, ").append(features).append(" features. ");
 			ChunkMarks.markApplied(chunk, key);
 		}
+		return summary.length() == 0 ? "Nada que hacer en este chunk." : summary.toString();
 	}
 }

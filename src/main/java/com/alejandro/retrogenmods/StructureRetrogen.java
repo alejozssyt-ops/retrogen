@@ -9,9 +9,10 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
-import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -25,12 +26,15 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Genera estructuras de un mod en chunks ya existentes, repitiendo la lógica de
- * ChunkGenerator#tryGenerateStructure (que es privada) y colocando la estructura al momento.
+ * Genera estructuras de un mod en chunks ya existentes. Como las estructuras (islas) abarcan
+ * varios chunks y los vecinos ya están generados, colocamos la estructura en TODOS los chunks
+ * que cubre. Si alguno está en zona protegida o muy visitado, se descarta la estructura entera.
  */
 public final class StructureRetrogen {
 	private StructureRetrogen() {
 	}
+
+	private static final int MAX_CHUNKS = 64;
 
 	public static int apply(ServerLevel level, LevelChunk chunk, String namespace) {
 		ChunkPos cp = chunk.getPos();
@@ -53,6 +57,7 @@ public final class StructureRetrogen {
 			if (!placement.isStructureChunk(state, cp.x, cp.z)) {
 				continue;
 			}
+			RetrogenMods.LOGGER.info("[{}] {} es chunk de estructura del set {}", namespace, cp, setHolder.getRegisteredName());
 
 			RandomSource random = RandomSource.create(seed ^ cp.toLong() ^ setHolder.getRegisteredName().hashCode());
 			List<StructureSet.StructureSelectionEntry> candidates = new ArrayList<>(set.structures());
@@ -60,8 +65,9 @@ public final class StructureRetrogen {
 				StructureSet.StructureSelectionEntry entry = pickWeighted(candidates, random);
 				candidates.remove(entry);
 				Structure structure = entry.structure().value();
+				String name = entry.structure().getRegisteredName();
 				if (chunk.getStartForStructure(structure) != null) {
-					break; // ya hay una estructura de este tipo aquí
+					break;
 				}
 				try {
 					Predicate<Holder<Biome>> validBiome = structure.biomes()::contains;
@@ -69,19 +75,55 @@ public final class StructureRetrogen {
 							entry.structure(), level.dimension(), level.registryAccess(), generator,
 							generator.getBiomeSource(), randomState, templates, seed, cp, 0, chunk, validBiome);
 					if (!start.isValid()) {
+						RetrogenMods.LOGGER.info("[{}] {} descartada en {}: no hay un sitio/bioma válido", namespace, name, cp);
+						continue;
+					}
+					BoundingBox box = start.getBoundingBox();
+					int minCx = SectionPos.blockToSectionCoord(box.minX());
+					int maxCx = SectionPos.blockToSectionCoord(box.maxX());
+					int minCz = SectionPos.blockToSectionCoord(box.minZ());
+					int maxCz = SectionPos.blockToSectionCoord(box.maxZ());
+					if ((maxCx - minCx + 1) * (maxCz - minCz + 1) > MAX_CHUNKS) {
+						RetrogenMods.LOGGER.info("[{}] {} descartada en {}: demasiado grande", namespace, name, cp);
+						continue;
+					}
+					if (!areaIsFree(level, minCx, maxCx, minCz, maxCz)) {
+						RetrogenMods.LOGGER.info("[{}] {} descartada en {}: toca zona protegida o muy visitada", namespace, name, cp);
 						continue;
 					}
 					structureManager.setStartForStructure(SectionPos.bottomOf(chunk), structure, start, chunk);
-					BoundingBox box = start.getBoundingBox();
-					start.placeInChunk(level, structureManager, generator, random, box, cp);
+					for (int x = minCx; x <= maxCx; x++) {
+						for (int z = minCz; z <= maxCz; z++) {
+							ChunkPos p = new ChunkPos(x, z);
+							BoundingBox area = new BoundingBox(p.getMinBlockX(), level.getMinY() + 1, p.getMinBlockZ(),
+									p.getMaxBlockX(), level.getMaxY(), p.getMaxBlockZ());
+							start.placeInChunk(level, structureManager, generator, random, area, p);
+						}
+					}
 					generated++;
+					RetrogenMods.LOGGER.info("[{}] GENERADA {} en {} (chunks {}..{}, {}..{})", namespace, name, cp, minCx, maxCx, minCz, maxCz);
 					break;
 				} catch (Exception e) {
-					RetrogenMods.LOGGER.warn("Falló la estructura {} en el chunk {}", entry.structure().getRegisteredName(), cp, e);
+					RetrogenMods.LOGGER.warn("Falló la estructura {} en el chunk {}", name, cp, e);
 				}
 			}
 		}
 		return generated;
+	}
+
+	private static boolean areaIsFree(ServerLevel level, int minCx, int maxCx, int minCz, int maxCz) {
+		for (int x = minCx; x <= maxCx; x++) {
+			for (int z = minCz; z <= maxCz; z++) {
+				if (RetrogenMods.isProtected(level, new ChunkPos(x, z))) {
+					return false;
+				}
+				ChunkAccess c = level.getChunk(x, z);
+				if (RetrogenMods.isBusy(c)) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	private static StructureSet.StructureSelectionEntry pickWeighted(List<StructureSet.StructureSelectionEntry> list, RandomSource random) {
