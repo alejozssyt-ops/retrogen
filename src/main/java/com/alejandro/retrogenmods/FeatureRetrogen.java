@@ -56,8 +56,8 @@ public final class FeatureRetrogen {
 		for (Map<Holder<PlacedFeature>, Boolean> features : bySteps.values()) {
 			for (Holder<PlacedFeature> feature : new ArrayList<>(features.keySet())) {
 				try {
-					// PlacedFeature#place ya aplica el filtro de bioma por posición.
-					if (feature.value().place(level, generator, random, origin)) {
+					// placeWithBiomeCheck registra la feature actual para que el BiomeFilter funcione.
+					if (feature.value().placeWithBiomeCheck(level, generator, random, origin)) {
 						placed++;
 					}
 				} catch (Exception e) {
