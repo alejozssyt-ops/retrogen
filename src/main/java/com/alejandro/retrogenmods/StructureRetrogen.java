@@ -128,7 +128,12 @@ public final class StructureRetrogen {
 	public static void relight(ServerLevel level, int chunkX, int chunkZ) {
 		try {
 			ChunkAccess c = level.getChunk(chunkX, chunkZ);
-			level.getChunkSource().getLightEngine().lightChunk(c, false);
+			// Luz aproximada ahora; y al terminar se marca "luz sin calcular" para que el juego
+			// la recalcule desde cero la próxima vez que cargue el chunk (como en una generación normal).
+			level.getChunkSource().getLightEngine().lightChunk(c, false).thenAccept(done -> {
+				done.setLightCorrect(false);
+				done.markUnsaved();
+			});
 		} catch (Exception e) {
 			RetrogenMods.LOGGER.warn("No se pudo recalcular la luz del chunk {} {}", chunkX, chunkZ, e);
 		}

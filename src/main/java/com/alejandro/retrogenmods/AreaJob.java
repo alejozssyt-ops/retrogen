@@ -40,8 +40,10 @@ public final class AreaJob {
 	private int found = 0;
 	private final Deque<Read> reads = new ArrayDeque<>();
 	private final ServerBossEvent bar;
+	private final boolean relightOnly;
 
-	private AreaJob(CommandSourceStack src, int side) {
+	private AreaJob(CommandSourceStack src, int side, boolean relightOnly) {
+		this.relightOnly = relightOnly;
 		this.server = src.getServer();
 		this.level = src.getLevel();
 		ChunkPos center = new ChunkPos(net.minecraft.core.BlockPos.containing(src.getPosition()));
@@ -56,12 +58,15 @@ public final class AreaJob {
 		}
 	}
 
-	public static String start(CommandSourceStack src, int side) {
+	public static String start(CommandSourceStack src, int side, boolean relightOnly) {
 		if (current != null) {
 			return "Ya hay una tarea en curso. Usa /retrogen cancel para detenerla.";
 		}
-		current = new AreaJob(src, side);
+		current = new AreaJob(src, side, relightOnly);
 		RetrogenMods.LOGGER.info("Tarea de área iniciada: {}x{} chunks ({} en total)", side, side, current.total);
+		if (relightOnly) {
+			return "Relight iniciado: " + side + "x" + side + " chunks. Al terminar, guarda y sal del mundo y vuelve a entrar para que se recalcule la luz.";
+		}
 		return "Tarea iniciada: " + side + "x" + side + " chunks. Solo se procesan los chunks que ya existen. Progreso en la barra superior.";
 	}
 
@@ -96,7 +101,12 @@ public final class AreaJob {
 			if (tag.isPresent()) {
 				try {
 					LevelChunk chunk = level.getChunk(r.pos().x, r.pos().z);
-					RetrogenMods.processChunk(level, chunk);
+					if (relightOnly) {
+						chunk.setLightCorrect(false);
+						chunk.markUnsaved();
+					} else {
+						RetrogenMods.processChunk(level, chunk);
+					}
 					found++;
 				} catch (Exception e) {
 					RetrogenMods.LOGGER.warn("Falló el chunk {} en la tarea de área", r.pos(), e);

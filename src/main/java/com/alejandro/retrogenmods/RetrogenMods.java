@@ -104,7 +104,13 @@ public class RetrogenMods implements ModInitializer {
 								}))))
 						.then(Commands.literal("area")
 								.then(Commands.argument("lado", IntegerArgumentType.integer(1, 256)).executes(ctx -> {
-									String result = AreaJob.start(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "lado"));
+									String result = AreaJob.start(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "lado"), false);
+									ctx.getSource().sendSuccess(() -> Component.literal(result), false);
+									return 1;
+								})))
+						.then(Commands.literal("relight")
+								.then(Commands.argument("lado", IntegerArgumentType.integer(1, 256)).executes(ctx -> {
+									String result = AreaJob.start(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "lado"), true);
 									ctx.getSource().sendSuccess(() -> Component.literal(result), false);
 									return 1;
 								})))

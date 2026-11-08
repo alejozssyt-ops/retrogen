@@ -19,7 +19,7 @@ public class RetrogenConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	/** Namespaces (ids de mod) cuyas features/estructuras se aplican retroactivamente. */
-	public List<String> namespaces = new ArrayList<>(List.of("mss", "mes", "ecologics"));
+	public List<String> namespaces = new ArrayList<>(List.of("mss", "mes", "ecologics", "terralith"));
 
 	/** Cuántos chunks se procesan por tick (más alto = más rápido pero más lag). */
 	public int chunksPerTick = 1;
