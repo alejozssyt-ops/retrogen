@@ -200,13 +200,13 @@ public class RetrogenMods implements ModInitializer {
 			int structures = 0;
 			int features = 0;
 			try {
-				structures = (config.retrogenStructures && !busyChunk) ? StructureRetrogen.apply(level, chunk, ns) : 0;
+				structures = config.retrogenStructures ? StructureRetrogen.apply(level, chunk, ns) : 0;
 				features = config.retrogenFeatures ? FeatureRetrogen.apply(level, chunk, ns) : 0;
 			} catch (Exception e) {
 				LOGGER.error("Retrogen falló para {} en {}", ns, chunk.getPos(), e);
 			}
 			LOGGER.info("Retrogen {} en {} ({}): {} estructuras, {} features{}", ns, chunk.getPos(), level.dimension().toString(), structures, features,
-					busyChunk ? " (estructuras omitidas: chunk muy visitado)" : "");
+					busyChunk ? " (chunk muy visitado: solo estructuras de cielo)" : "");
 			summary.append(ns).append(": ").append(structures).append(" estructuras, ").append(features).append(" features. ");
 			ChunkMarks.markApplied(chunk, key);
 		}
