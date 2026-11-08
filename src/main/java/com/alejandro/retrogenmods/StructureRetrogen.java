@@ -13,6 +13,7 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -91,7 +92,10 @@ public final class StructureRetrogen {
 						RetrogenMods.LOGGER.info("[{}] {} descartada en {}: demasiado grande", namespace, name, cp);
 						continue;
 					}
-					if (!areaIsFree(level, minCx, maxCx, minCz, maxCz)) {
+					int surface = generator.getFirstFreeHeight((box.minX() + box.maxX()) / 2, (box.minZ() + box.maxZ()) / 2,
+							Heightmap.Types.WORLD_SURFACE_WG, level, randomState);
+					boolean sky = box.minY() > surface + 10;
+					if (!areaIsFree(level, minCx, maxCx, minCz, maxCz, sky)) {
 						RetrogenMods.LOGGER.info("[{}] {} descartada en {}: toca zona protegida o muy visitada", namespace, name, cp);
 						continue;
 					}
@@ -105,7 +109,7 @@ public final class StructureRetrogen {
 						}
 					}
 					generated++;
-					RetrogenMods.LOGGER.info("[{}] GENERADA {} en {} (chunks {}..{}, {}..{})", namespace, name, cp, minCx, maxCx, minCz, maxCz);
+					RetrogenMods.LOGGER.info("[{}] GENERADA {}{} en {} (chunks {}..{}, {}..{})", namespace, name, sky ? " [CIELO]" : "", cp, minCx, maxCx, minCz, maxCz);
 					break;
 				} catch (Exception e) {
 					RetrogenMods.LOGGER.warn("Falló la estructura {} en el chunk {}", name, cp, e);
@@ -126,14 +130,14 @@ public final class StructureRetrogen {
 		return false;
 	}
 
-	private static boolean areaIsFree(ServerLevel level, int minCx, int maxCx, int minCz, int maxCz) {
+	private static boolean areaIsFree(ServerLevel level, int minCx, int maxCx, int minCz, int maxCz, boolean sky) {
 		for (int x = minCx; x <= maxCx; x++) {
 			for (int z = minCz; z <= maxCz; z++) {
 				if (RetrogenMods.isProtected(level, new ChunkPos(x, z))) {
 					return false;
 				}
 				ChunkAccess c = level.getChunk(x, z);
-				if (RetrogenMods.isBusy(level, c)) {
+				if (!sky && RetrogenMods.isBusy(level, c)) {
 					return false;
 				}
 			}
