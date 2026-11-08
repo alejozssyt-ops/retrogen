@@ -30,6 +30,34 @@ public class RetrogenConfig {
 	/** Súbelo (2, 3...) para volver a aplicar retrogen en todos los chunks, por ejemplo tras añadir un mod nuevo. */
 	public int version = 1;
 
+	/**
+	 * Las estructuras no se retrogeneran en chunks donde algún jugador pasó más de estos ticks
+	 * (20 ticks = 1 segundo; 1200 = 1 minuto). Pon -1 para desactivar esta protección.
+	 */
+	public long skipStructuresIfInhabitedTicksAbove = 1200;
+
+	/** Zonas donde el mod no toca nada (ni estructuras ni features). */
+	public List<ProtectedZone> protectedZones = new ArrayList<>(List.of(new ProtectedZone(850, -750, 8, "minecraft:overworld")));
+
+	public static class ProtectedZone {
+		/** Centro de la zona, en coordenadas de bloque. */
+		public int blockX;
+		public int blockZ;
+		/** Diámetro de la zona en chunks (8 = 128 bloques de lado, centrado en blockX/blockZ). */
+		public int diameterChunks;
+		public String dimension = "minecraft:overworld";
+
+		public ProtectedZone() {
+		}
+
+		public ProtectedZone(int blockX, int blockZ, int diameterChunks, String dimension) {
+			this.blockX = blockX;
+			this.blockZ = blockZ;
+			this.diameterChunks = diameterChunks;
+			this.dimension = dimension;
+		}
+	}
+
 	public static RetrogenConfig load() {
 		Path path = FabricLoader.getInstance().getConfigDir().resolve("retrogen_mods.json");
 		RetrogenConfig config = new RetrogenConfig();

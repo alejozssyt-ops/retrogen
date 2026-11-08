@@ -71,14 +71,39 @@ public class RetrogenMods implements ModInitializer {
 		LOGGER.info("Retrogen Mods activo para: {}", config.namespaces);
 	}
 
+	/** true si el centro del chunk cae dentro de alguna zona protegida de la config. */
+	private static boolean isProtected(ServerLevel level, LevelChunk chunk) {
+		String dimension = level.dimension().toString();
+		int centerX = chunk.getPos().getMinBlockX() + 8;
+		int centerZ = chunk.getPos().getMinBlockZ() + 8;
+		for (RetrogenConfig.ProtectedZone zone : config.protectedZones) {
+			if (zone.dimension != null && !dimension.contains(zone.dimension)) {
+				continue;
+			}
+			int half = zone.diameterChunks * 16 / 2;
+			if (Math.abs(centerX - zone.blockX) <= half && Math.abs(centerZ - zone.blockZ) <= half) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static void process(ServerLevel level, LevelChunk chunk) {
+		boolean inProtectedZone = isProtected(level, chunk);
+		boolean busyChunk = config.skipStructuresIfInhabitedTicksAbove >= 0
+				&& chunk.getInhabitedTime() > config.skipStructuresIfInhabitedTicksAbove;
 		for (String ns : config.namespaces) {
 			String key = ChunkMarks.key(ns, config.version);
 			if (ChunkMarks.isApplied(chunk, key)) {
 				continue;
 			}
+			if (inProtectedZone) {
+				// Zona protegida: no se toca nada, pero se marca para no volver a revisarla.
+				ChunkMarks.markApplied(chunk, key);
+				continue;
+			}
 			try {
-				int structures = config.retrogenStructures ? StructureRetrogen.apply(level, chunk, ns) : 0;
+				int structures = (config.retrogenStructures && !busyChunk) ? StructureRetrogen.apply(level, chunk, ns) : 0;
 				int features = config.retrogenFeatures ? FeatureRetrogen.apply(level, chunk, ns) : 0;
 				if (structures + features > 0) {
 					LOGGER.debug("Retrogen {} en {}: {} estructuras, {} features", ns, chunk.getPos(), structures, features);
