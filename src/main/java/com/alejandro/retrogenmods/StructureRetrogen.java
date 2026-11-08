@@ -108,6 +108,11 @@ public final class StructureRetrogen {
 							start.placeInChunk(level, structureManager, generator, random, area, p);
 						}
 					}
+					for (int x = minCx; x <= maxCx; x++) {
+						for (int z = minCz; z <= maxCz; z++) {
+							relight(level, x, z);
+						}
+					}
 					generated++;
 					RetrogenMods.LOGGER.info("[{}] GENERADA {}{} en {} (chunks {}..{}, {}..{})", namespace, name, sky ? " [CIELO]" : "", cp, minCx, maxCx, minCz, maxCz);
 					break;
@@ -117,6 +122,16 @@ public final class StructureRetrogen {
 			}
 		}
 		return generated;
+	}
+
+	/** Recalcula la luz de un chunk tras colocar bloques (el motor de luz no siempre lo hace solo en chunks viejos). */
+	public static void relight(ServerLevel level, int chunkX, int chunkZ) {
+		try {
+			ChunkAccess c = level.getChunk(chunkX, chunkZ);
+			level.getChunkSource().getLightEngine().lightChunk(c, false);
+		} catch (Exception e) {
+			RetrogenMods.LOGGER.warn("No se pudo recalcular la luz del chunk {} {}", chunkX, chunkZ, e);
+		}
 	}
 
 	/** true si alguna estructura del set puede existir en algún bioma de esta dimensión. */

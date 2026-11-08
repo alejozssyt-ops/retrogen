@@ -65,6 +65,9 @@ public final class FeatureRetrogen {
 				}
 			}
 		}
+		if (placed > 0) {
+			StructureRetrogen.relight(level, cp.x, cp.z);
+		}
 		return placed;
 	}
 }
