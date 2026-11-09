@@ -38,6 +38,7 @@ public final class AreaJob {
 	private long next = 0;
 	private long checked = 0;
 	private int found = 0;
+	private int lightWait = 0;
 	private final Deque<Read> reads = new ArrayDeque<>();
 	private final ServerBossEvent bar;
 	private final boolean relightOnly;
@@ -92,7 +93,14 @@ public final class AreaJob {
 			reads.add(new Read(pos, level.getChunkSource().chunkMap.read(pos)));
 		}
 
+		// Si el motor de luz va atrasado, espera (máximo 40 ticks seguidos) para no dejar zonas a oscuras.
 		int budget = perTick;
+		if (level.getChunkSource().getLightEngine().hasLightWork() && lightWait < 40) {
+			lightWait++;
+			budget = 0;
+		} else {
+			lightWait = 0;
+		}
 		int guard = 4000;
 		while (!reads.isEmpty() && reads.peek().future().isDone() && budget > 0 && guard-- > 0) {
 			Read r = reads.poll();
