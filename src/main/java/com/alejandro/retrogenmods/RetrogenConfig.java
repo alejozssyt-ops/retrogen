@@ -34,6 +34,15 @@ public class RetrogenConfig {
 	public boolean repaintBiomes = true;
 	public List<String> repaintDimensions = new ArrayList<>(List.of("minecraft:overworld"));
 
+	/** Solo las estructuras de estos namespaces pueden ser "de cielo" (islas). Todo lo demás se trata como de suelo. */
+	public List<String> skyNamespaces = new ArrayList<>(List.of("mss"));
+
+	/**
+	 * Las estructuras de suelo se descartan si la altura del terreno REAL en su centro difiere de la que
+	 * calcularía el generador en más de estos bloques (evita estructuras flotando o enterradas, p. ej. con Terralith).
+	 */
+	public int maxGroundMismatch = 8;
+
 	public boolean retrogenStructures = true;
 	public boolean retrogenFeatures = true;
 

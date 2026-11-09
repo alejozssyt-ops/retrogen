@@ -94,7 +94,17 @@ public final class StructureRetrogen {
 					}
 					int surface = generator.getFirstFreeHeight((box.minX() + box.maxX()) / 2, (box.minZ() + box.maxZ()) / 2,
 							Heightmap.Types.WORLD_SURFACE_WG, level, randomState);
-					boolean sky = box.minY() > surface + 10;
+					boolean sky = RetrogenMods.config().skyNamespaces.contains(namespace) && box.minY() > surface + 10;
+					if (!sky) {
+						int gx = (box.minX() + box.maxX()) / 2;
+						int gz = (box.minZ() + box.maxZ()) / 2;
+						int real = level.getHeight(Heightmap.Types.OCEAN_FLOOR, gx, gz);
+						int gen = generator.getFirstFreeHeight(gx, gz, Heightmap.Types.OCEAN_FLOOR_WG, level, randomState);
+						if (Math.abs(real - gen) > RetrogenMods.config().maxGroundMismatch) {
+							RetrogenMods.LOGGER.info("[{}] {} descartada en {}: el terreno real (y={}) no coincide con el del generador (y={})", namespace, name, cp, real, gen);
+							continue;
+						}
+					}
 					if (!areaIsFree(level, minCx, maxCx, minCz, maxCz, sky)) {
 						RetrogenMods.LOGGER.info("[{}] {} descartada en {}: toca zona protegida o muy visitada", namespace, name, cp);
 						continue;

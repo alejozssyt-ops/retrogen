@@ -38,6 +38,10 @@ public class RetrogenMods implements ModInitializer {
 	private static final Set<Pending> QUEUED = new HashSet<>();
 	private static RetrogenConfig config;
 
+	public static RetrogenConfig config() {
+		return config;
+	}
+
 	@Override
 	public void onInitialize() {
 		config = RetrogenConfig.load();
